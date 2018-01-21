@@ -26,21 +26,22 @@ Based on the example created 23 Mar 2010 by Tom Igoe
 #define SELECT_BUTTON 0xfd906f //Center the servo
 
 
-
+#define LED_UP        0xFFC23D
+#define LED_DOWN      0xFF22DD
 #define UP_ARROW      0xFF906F //Increased number of degrees servo moves
 #define DOWN_ARROW    0xFFE01F //Decrease number of degrees servo moves
 
 
 
-#define BUTTON_0 0xfd30cf  //Pushing buttons 0-9 moves to fixed positions
-#define BUTTON_1 0xfd08f7  // each 20 degrees greater
-#define BUTTON_2 0xfd8877
-#define BUTTON_3 0xfd48b7
-#define BUTTON_4 0xfd28d7
-#define BUTTON_5 0xfda857
-#define BUTTON_6 0xfd6897
-#define BUTTON_7 0xfd18e7
-#define BUTTON_8 0xfd9867
+// #define BUTTON_0 0xfd30cf  //Pushing buttons 0-9 moves to fixed positions
+// #define BUTTON_1 0xfd08f7  // each 20 degrees greater
+// #define BUTTON_2 0xfd8877
+// #define BUTTON_3 0xfd48b7
+// #define BUTTON_4 0xfd28d7
+// #define BUTTON_5 0xfda857
+// #define BUTTON_6 0xfd6897
+// #define BUTTON_7 0xfd18e7
+// #define BUTTON_8 0xfd9867
 #define BUTTON_9 0xfd58a7
 
 
@@ -65,9 +66,13 @@ const int clockPin = 12;
 ////Pin connected to Data in (SER IN) of TPIC6B595
 const int dataPin = 11;
 
-int counter = 0;
+int maxNumLeds   = 8;
 int numLedsInUse = 8;
 byte dataArray[10];
+
+int counter = 0;
+byte inputOn;
+
 
 
 
@@ -89,22 +94,12 @@ void setup() {
  pinMode(clockPin, OUTPUT);
  Serial.begin(9600);
 
-// Determain which LEDS are on / off start with all off.
-dataArray[0] = 0x00; //0b00000000
-dataArray[1] = 0x80; //0b10000000
-dataArray[2] = 0xC0; //0b11000000
-dataArray[3] = 0xE0; //0b11100000
-dataArray[4] = 0xF0; //0b11110000
-dataArray[5] = 0xF8; //0b11111000
-dataArray[6] = 0xFC; //0b11111100
-dataArray[7] = 0xFE; //0b11111110
-dataArray[8] = 0xFF; //0b11111111
+// numLedsInUse = 8
+inputOn = 0;
 
  // Always start by setting SRCLR high
  digitalWrite( clearPin, HIGH);
 
- // delay a little and then set
-//  delay(100);
 }
 
 void loop() {
@@ -120,21 +115,10 @@ void loop() {
 //      Serial.println(myDecoder.value);
       Serial.println(myDecoder.value, HEX);
       switch(myDecoder.value) {
-      case LEFT_ARROW:    pos=min(180,pos+Speed); break;
-      case RIGHT_ARROW:   pos=max(0,pos-Speed); break;
-      case SELECT_BUTTON: pos=90; break;
       case UP_ARROW:      ledSpeed = ledSpeedFunc(ledSpeed, (char*)"up"); break;
       case DOWN_ARROW:    ledSpeed = ledSpeedFunc(ledSpeed, (char*)"down"); break;
-      case BUTTON_0:      pos=0*20; break;
-      case BUTTON_1:      pos=1*20; break;
-      case BUTTON_2:      pos=2*20; break;
-      case BUTTON_3:      pos=3*20; break;
-      case BUTTON_4:      pos=4*20; break;
-      case BUTTON_5:      pos=5*20; break;
-      case BUTTON_6:      pos=6*20; break;
-      case BUTTON_7:      pos=7*20; break;
-      case BUTTON_8:      pos=8*20; break;
-      case BUTTON_9:      pos=9*20; break;
+      case LED_UP:        numLedsInUse = ledChangeFunc(numLedsInUse, (char*)"led_up"); break;
+      case LED_DOWN:      numLedsInUse = ledChangeFunc(numLedsInUse, (char*)"led_down"); break;
       }
       // myServo.write(pos); // tell servo to go to position in variable 'pos'
       Previous=myDecoder.value;
@@ -145,13 +129,26 @@ void loop() {
 
 
  // Display LED's running
- if (counter < numLedsInUse) {
-  registerWrite(counter, HIGH, dataArray[counter]);
+ if (counter <= numLedsInUse) {
+  // Serial.println("===========");
+  // Serial.println(String(inputOn, BIN));
+  // Serial.println("===========");
+
+  registerWrite(counter, HIGH, inputOn);
+
   counter++;
+  inputOn = inputOn + round(pow(2.0, (numLedsInUse - counter)));
  }
  else {
-  registerWrite((counter - 1), HIGH, dataArray[counter]);
+  // registerWrite((counter - 1), HIGH, dataArray[counter]);
+  // registerWrite((counter - 1), HIGH, (byte) pow(2, (counter + 1)));
+  // inputOn = inputOn >> counter;
   counter = 0;
+  inputOn = 0;
+
+  // inputOn = inputOn + round(pow(2.0, (numLedsInUse - counter)));
+  registerWrite(counter, HIGH, inputOn);
+
  }
 
  delay(ledSpeed);
@@ -166,21 +163,25 @@ void registerWrite(int whichPin, int whichState, byte data) {
   shiftOut(dataPin, clockPin, MSBFIRST, data);
 
   // turn on the output so the LEDs can light up:
-     digitalWrite(latchPin, HIGH);
+  digitalWrite(latchPin, HIGH);
 }
 
 int ledSpeedFunc(int speed, char* direction) {
+  Serial.println(speed);
   if (direction == "up") {
-    if ((speed -5) >= 0) {
-      return speed - 5;
+    if ((speed -7) > 0) {
+      return speed - 7;
     }
     else {
-      return 0;
+      // @ToDo add solid LED state.
+      // Current hardware can't handle < 7ms delay time.
+      // Possible issues: IR commands are getting called mid loop and being duplicated.
+      return 7;
     }
   }
   else {
-    if ((speed +5) <= 2000) {
-      return speed + 5;
+    if ((speed +7) <= 2000) {
+      return speed + 7;
     }
     else {
       return 2000;
@@ -188,13 +189,27 @@ int ledSpeedFunc(int speed, char* direction) {
   }
 }
 
-
-
-
-
-
-
-
-
-
-
+int ledChangeFunc(int numLedsInUse, char* direction) {
+  // Serial.println("=======");
+  // Serial.println(numLedsInUse);
+  // Serial.println(maxNumLeds);
+  // Serial.println("=======");
+  if (direction == "led_up") {
+    Serial.println("led_up");
+    if (numLedsInUse < maxNumLeds) {
+      return (numLedsInUse + 1);
+    }
+    else {
+      return maxNumLeds;
+    }
+  }
+  else {
+    Serial.println("led_down");
+    if (numLedsInUse > 0) {
+      return (numLedsInUse - 1);
+    }
+    else {
+      return 0;
+    }
+  }
+}
